@@ -1,5 +1,5 @@
 const express = require('express');
-const { backupTable, listBackups } = require('../utils/backup');
+const { backupTable, listBackups, restoreTable } = require('../utils/backup');
 
 const router = express.Router();
 
@@ -34,6 +34,25 @@ router.get('/', async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Failed to list backups',
+      error: error.message
+    });
+  }
+});
+
+router.post('/restore/:fileName', async (req, res) => {
+  try {
+    const { fileName } = req.params;
+    const result = await restoreTable(fileName);
+    res.json({
+      success: true,
+      message: `Table '${result.tableName}' restored successfully from ${fileName}`,
+      data: result
+    });
+  } catch (error) {
+    console.error('Restore error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Restore failed',
       error: error.message
     });
   }

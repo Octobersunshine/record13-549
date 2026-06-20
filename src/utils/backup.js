@@ -62,9 +62,11 @@ async function backupTable(tableName) {
   let sqlContent = `-- Backup of table: ${tableName}\n`;
   sqlContent += `-- Generated at: ${new Date().toISOString()}\n`;
   sqlContent += `-- Records: ${data.length}\n\n`;
-  sqlContent += `SET NAMES utf8mb4;\n\n`;
+  sqlContent += `SET NAMES utf8mb4;\n`;
+  sqlContent += `SET FOREIGN_KEY_CHECKS = 0;\n\n`;
   sqlContent += `DROP TABLE IF EXISTS \`${tableName}\`;\n\n`;
   sqlContent += `${schema};\n\n`;
+  sqlContent += `TRUNCATE TABLE \`${tableName}\`;\n\n`;
 
   if (data.length > 0) {
     const columnList = columns.map(c => `\`${c}\``).join(', ');
@@ -80,7 +82,8 @@ async function backupTable(tableName) {
     sqlContent += `UNLOCK TABLES;\n`;
   }
 
-  sqlContent += '\n-- End of backup\n';
+  sqlContent += `\nSET FOREIGN_KEY_CHECKS = 1;\n`;
+  sqlContent += '-- End of backup\n';
 
   fs.writeFileSync(filePath, sqlContent, 'utf8');
 
@@ -110,4 +113,69 @@ function listBackups() {
   return files;
 }
 
-module.exports = { backupTable, listBackups, BACKUP_DIR, escapeValue };
+function parseTableNameFromBackup(fileName) {
+  const filePath = path.join(BACKUP_DIR, fileName);
+  if (!fs.existsSync(filePath)) {
+    return null;
+  }
+  const content = fs.readFileSync(filePath, 'utf8');
+  const match = content.match(/^-- Backup of table: (.+)$/m);
+  return match ? match[1].trim() : null;
+}
+
+async function restoreTable(fileName) {
+  ensureBackupDir();
+
+  const filePath = path.join(BACKUP_DIR, fileName);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Backup file not found: ${fileName}`);
+  }
+  if (!fileName.endsWith('.sql')) {
+    throw new Error('Invalid backup file: must be a .sql file');
+  }
+
+  const tableName = parseTableNameFromBackup(fileName);
+  if (!tableName) {
+    throw new Error('Cannot determine table name from backup file');
+  }
+
+  const connection = await pool.getConnection();
+
+  try {
+    await connection.query('SET FOREIGN_KEY_CHECKS = 0');
+
+    const [rows] = await connection.query(
+      `SELECT COUNT(*) AS cnt FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?`,
+      [tableName]
+    );
+
+    if (rows[0].cnt > 0) {
+      await connection.query(`TRUNCATE TABLE \`${tableName}\``);
+    }
+
+    const sqlContent = fs.readFileSync(filePath, 'utf8');
+    const statements = sqlContent
+      .split(';')
+      .map(s => s.trim())
+      .filter(s => s.length > 0 && !s.startsWith('--'));
+
+    for (const statement of statements) {
+      await connection.query(statement);
+    }
+
+    await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+
+    return {
+      fileName,
+      tableName,
+      restoredAt: new Date().toISOString()
+    };
+  } catch (error) {
+    await connection.query('SET FOREIGN_KEY_CHECKS = 1');
+    throw error;
+  } finally {
+    connection.release();
+  }
+}
+
+module.exports = { backupTable, listBackups, restoreTable, BACKUP_DIR, escapeValue };
