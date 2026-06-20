@@ -1,0 +1,26 @@
+{
+  "name": "549",
+  "version": "1.0.0",
+  "description": "",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "test": "node test/backup.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Octobersunshine/record13-549.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Octobersunshine/record13-549/issues"
+  },
+  "homepage": "https://github.com/Octobersunshine/record13-549#readme",
+  "dependencies": {
+    "express": "^5.2.1",
+    "mysql2": "^3.22.5"
+  }
+}
