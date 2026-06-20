@@ -1,5 +1,6 @@
 const express = require('express');
 const backupRouter = require('./routes/backup');
+const migrateRouter = require('./routes/migrate');
 
 const app = express();
 
@@ -11,5 +12,6 @@ app.get('/health', (req, res) => {
 });
 
 app.use('/api/backup', backupRouter);
+app.use('/api/migrate', migrateRouter);
 
 module.exports = app;
